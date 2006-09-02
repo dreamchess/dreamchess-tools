@@ -44,7 +44,7 @@ int combine_pixel(char *data)
     retval = 0;
 
     for (i = 0; i < 8; i++)
-        retval |= (data[i] & 1) << (7 - i);
+        retval |= (data[i] & 1) << i;
 
     return retval;
 }
@@ -55,21 +55,21 @@ void write_data(FILE *f)
 
     fprintf(f, "char pixels[] = {\n");
 
-    for (i = 0; i < IMAGE_HEIGHT; i++)
+    for (i = IMAGE_HEIGHT - 1; i >= 0; i--)
     {
         int j;
 
         fprintf(f, "    ");
 
-        for (j = 0; j < IMAGE_WIDTH / 8; j++)
+        for (j = IMAGE_WIDTH / 8 - 1; j >= 0; j--)
         {
             int index = i * IMAGE_WIDTH + j * 8;
             fprintf(f, "0x%02x", combine_pixel(pixels + index));
-            if (j != IMAGE_WIDTH / 8 - 1)
+            if (j != 0)
                 fprintf(f, ", ");
         }
 
-        if (i != IMAGE_HEIGHT - 1)
+        if (i != 0)
             fprintf(f, ",\n");
         else
             fprintf(f, "\n};\n");
