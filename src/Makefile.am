@@ -1,8 +1,9 @@
 AM_CFLAGS = $(CFLAGS) @SDL_CFLAGS@
-bin_PROGRAMS = dcmstrip ttf2png dcicon
+bin_PROGRAMS = dcmstrip ttf2png dcicon vmuicon
 dist_bin_SCRIPTS = colour-reduce.sh
 dcmstrip_SOURCES = dcmstrip.cpp
 dcmstrip_LDADD = -ltristripper
 ttf2png_SOURCES = ttf2png.c
 ttf2png_LDADD = @SDL_TTF_LIBS@ @SDL_LIBS@ @PNG_LIBS@
 dcicon_SOURCES = dcicon.c
+vmuicon_SOURCES = vmuicon.c
