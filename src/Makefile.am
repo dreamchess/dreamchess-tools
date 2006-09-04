@@ -8,3 +8,4 @@ ttf2png_LDADD = @SDL_TTF_LIBS@ @SDL_LIBS@ @PNG_LIBS@
 dcicon_SOURCES = dcicon.c
 dcicon_LDADD = @PNG_LIBS@
 vmuicon_SOURCES = vmuicon.c
+vmuicon_LDADD = @PNG_LIBS@

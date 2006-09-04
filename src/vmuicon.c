@@ -16,44 +16,35 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-/* Convert GIMP raw indexed image to Dreamcast VMU icon. */
+/* Convert 48x32 1bpp grayscale PNG image to Dreamcast VMU icon. */
 
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <png.h>
+
+static png_structp png_ptr;
+static png_infop info_ptr;
+static png_bytep *rows;
+
 #define IMAGE_WIDTH 48
 #define IMAGE_HEIGHT 32
-#define DATA_SIZE (IMAGE_WIDTH*IMAGE_HEIGHT)
-unsigned char pixels[DATA_SIZE];
 
 static void abort_(const char * s, ...)
 {
     va_list args;
     va_start(args, s);
     vfprintf(stderr, s, args);
-    fprintf(stderr, "\n");
     va_end(args);
     abort();
-}
-
-int combine_pixel(char *data)
-{
-    int retval, i;
-
-    retval = 0;
-
-    for (i = 0; i < 8; i++)
-        retval |= (data[i] & 1) << i;
-
-    return retval;
 }
 
 void write_data(FILE *f)
 {
     int i;
 
-    fprintf(f, "char pixels[] = {\n");
+    fprintf(f, "char pixels[%i] = {\n", IMAGE_WIDTH * IMAGE_HEIGHT / 8);
 
     for (i = IMAGE_HEIGHT - 1; i >= 0; i--)
     {
@@ -63,8 +54,7 @@ void write_data(FILE *f)
 
         for (j = IMAGE_WIDTH / 8 - 1; j >= 0; j--)
         {
-            int index = i * IMAGE_WIDTH + j * 8;
-            fprintf(f, "0x%02x", combine_pixel(pixels + index));
+            fprintf(f, "0x%02x", rows[i][j]);
             if (j != 0)
                 fprintf(f, ", ");
         }
@@ -78,8 +68,7 @@ void write_data(FILE *f)
 
 int main(int argc, char **argv)
 {
-    FILE *f;
-    int i;
+    FILE *fin, *fout;
 
     if (argc < 3)
     {
@@ -87,22 +76,49 @@ int main(int argc, char **argv)
         exit(0);
     }
 
-    f = fopen(argv[1], "rb");
-    if (!f)
+    fin = fopen(argv[1], "rb");
+    if (!fin)
         abort_("File %s could not be opened for reading", argv[1]);
 
-    if (fread(pixels, DATA_SIZE, 1, f) < 1)
-        abort_("Error reading %s", argv[1]);
+    png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if (!png_ptr)
+        abort_("Failed to create PNG read struct\n");
 
-    fclose(f);
+    info_ptr = png_create_info_struct(png_ptr);
+    if (!info_ptr)
+        abort_("Failed to create PNG info struct\n");
 
-    f = fopen(argv[2], "w+");
-    if (!f)
-        abort_("File %s could not be opened for writing", argv[3]);
+    if (setjmp(png_jmpbuf(png_ptr)))
+    {
+        png_destroy_read_struct(&png_ptr, &info_ptr, png_infopp_NULL);
+        fclose(fin);
 
-    write_data(f);
+        abort_("Error reading PNG\n");
+    }
 
-    fclose(f);
+    png_init_io(png_ptr, fin);
+    png_read_png(png_ptr, info_ptr, PNG_TRANSFORM_INVERT_MONO | PNG_TRANSFORM_PACKSWAP, png_voidp_NULL);
+
+    if ((png_get_image_width(png_ptr, info_ptr) != IMAGE_WIDTH) ||
+        (png_get_image_height(png_ptr, info_ptr) != IMAGE_HEIGHT))
+        abort_("Image is not %ix%i pixels\n", IMAGE_WIDTH, IMAGE_HEIGHT);
+
+    if ((png_get_color_type(png_ptr, info_ptr) != PNG_COLOR_TYPE_GRAY)
+        || (png_get_bit_depth(png_ptr, info_ptr) != 1))
+        abort_("Image is not a grayscale image with bit depth 1\n");
+
+    rows = png_get_rows(png_ptr, info_ptr);
+
+    fout = fopen(argv[2], "w+");
+    if (!fout)
+        abort_("File %s could not be opened for writing", argv[2]);
+
+    write_data(fout);
+
+    png_destroy_read_struct(&png_ptr, &info_ptr, png_infopp_NULL);
+
+    fclose(fin);
+    fclose(fout);
 
     return 0;
 }
