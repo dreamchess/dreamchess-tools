@@ -16,29 +16,33 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-/* Convert GIMP raw indexed image to Dreamcast icon. Some versions of GIMP
- * only export half the image in RAW format, so double the vertical size
- * of the image before exporting.
- */
+/* Convert 32x32 4 bpp indexed PNG image to Dreamcast BIOS icon. */
 
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#define PAL_ENTRIES 16
-#define PAL_SIZE (PAL_ENTRIES*3)
-unsigned char palette[PAL_SIZE];
+#include <png.h>
 
+static png_structp png_ptr;
+static png_infop info_ptr;
+static png_bytep *rows;
+
+static png_colorp palette;
+static int num_palette;
+
+static png_bytep trans;
+static int num_trans;
+
+#define PAL_ENTRIES 16
 #define IMAGE_WIDTH 32
-#define DATA_SIZE (IMAGE_WIDTH*IMAGE_WIDTH*2)
-unsigned char pixels[DATA_SIZE];
+#define IMAGE_HEIGHT 32
 
 static void abort_(const char * s, ...)
 {
     va_list args;
     va_start(args, s);
     vfprintf(stderr, s, args);
-    fprintf(stderr, "\n");
     va_end(args);
     abort();
 }
@@ -52,45 +56,41 @@ void write_palette(FILE *f)
 {
     int i;
 
-    fprintf(f, "char palette[] = {\n");
+    fprintf(f, "char palette[%i] = {\n", PAL_ENTRIES);
 
-    for (i = 0; i < PAL_ENTRIES; i++)
+    for (i = 0; i < num_palette; i++)
     {
-        int argb = to_argb4444(palette[i * 3], palette[i * 3 + 1], palette[i * 3 + 2], 255);
+        int argb = to_argb4444(palette[i].red, palette[i].green, palette[i].blue, i < num_trans ? trans[i] : 255);
         fprintf(f, "    0x%02x, 0x%02x", argb & 0xff, argb >> 8);
-        if (i != PAL_ENTRIES - 1)
+        if (i != num_palette - 1)
             fprintf(f, ", /* %2i */\n", i);
         else
             fprintf(f, "  /* %2i */\n};\n", i);
     }
 }
 
-int combine_pixel(int nibble1, int nibble2)
-{
-    return (((nibble1 & 0x0f) << 4) | (nibble2 & 0x0f));
-}
-
 void write_data(FILE *f)
 {
     int i;
 
-    fprintf(f, "char pixels[] = {\n");
+    fprintf(f, "char pixels[%i] = {\n", IMAGE_WIDTH * IMAGE_HEIGHT / 2);
 
-    for (i = 0; i < IMAGE_WIDTH * 2; i++)
+    for (i = 0; i < IMAGE_HEIGHT; i++)
     {
         int j;
 
         fprintf(f, "    ");
 
-        for (j = 0; j < IMAGE_WIDTH / 4; j++)
+        for (j = 0; j < IMAGE_WIDTH / 2; j++)
         {
-            int index = i * IMAGE_WIDTH + j * 2 * 2;
-            fprintf(f, "0x%02x", combine_pixel(pixels[index], pixels[index + 2]));
-            if (j != IMAGE_WIDTH / 4 - 1)
+            fprintf(f, "0x%02x", rows[i][j]);
+            if (j == IMAGE_WIDTH / 4 - 1)
+                fprintf(f, ",\n    ");
+            else if (j != IMAGE_WIDTH / 2 - 1)
                 fprintf(f, ", ");
         }
 
-        if (i != IMAGE_WIDTH * 2 - 1)
+        if (i != IMAGE_HEIGHT - 1)
             fprintf(f, ",\n");
         else
             fprintf(f, "\n};\n");
@@ -99,42 +99,68 @@ void write_data(FILE *f)
 
 int main(int argc, char **argv)
 {
-    FILE *f;
-    int i;
+    FILE *fin, *fout;
 
-    if (argc < 4)
+    if (argc < 3)
     {
-        printf("Usage: dcicon <icon.raw> <icon.raw.pal> <icon.c>\n");
+        printf("Usage: dcicon <icon.png> <icon.c>\n");
         exit(0);
     }
 
-    f = fopen(argv[1], "rb");
-    if (!f)
+    fin = fopen(argv[1], "rb");
+    if (!fin)
         abort_("File %s could not be opened for reading", argv[1]);
 
-    if (fread(pixels, DATA_SIZE, 1, f) < 1)
-        abort_("Error reading %s", argv[1]);
+    png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if (!png_ptr)
+        abort_("Failed to create PNG read struct\n");
 
-    fclose(f);
+    info_ptr = png_create_info_struct(png_ptr);
+    if (!info_ptr)
+        abort_("Failed to create PNG info struct\n");
 
-    f = fopen(argv[2], "rb");
-    if (!f)
-        abort_("File %s could not be opened for reading", argv[2]);
+    if (setjmp(png_jmpbuf(png_ptr)))
+    {
+        png_destroy_read_struct(&png_ptr, &info_ptr, png_infopp_NULL);
+        fclose(fin);
 
-    if (fread(palette, PAL_SIZE, 1, f) < 1)
-        abort_("Error reading %s", argv[2]);
+        abort_("Error reading PNG\n");
+    }
 
-    fclose(f);
+    png_init_io(png_ptr, fin);
+    png_read_png(png_ptr, info_ptr, 0, png_voidp_NULL);
 
-    f = fopen(argv[3], "w+");
-    if (!f)
-        abort_("File %s could not be opened for writing", argv[3]);
+    if ((png_get_image_width(png_ptr, info_ptr) != IMAGE_WIDTH) ||
+        (png_get_image_height(png_ptr, info_ptr) != IMAGE_HEIGHT))
+        abort_("Image is not %ix%i pixels\n", IMAGE_WIDTH, IMAGE_HEIGHT);
 
-    write_palette(f);
-    fprintf(f, "\n");
-    write_data(f);
+    if ((png_get_color_type(png_ptr, info_ptr) != PNG_COLOR_TYPE_PALETTE)
+        || (png_get_bit_depth(png_ptr, info_ptr) != 4))
+        abort_("Image is not a paletted image with bit depth 4\n");
 
-    fclose(f);
+    if (!png_get_PLTE(png_ptr, info_ptr, &palette, &num_palette))
+        abort_("Error reading palette\n");
+
+    if (num_palette > PAL_ENTRIES)
+        abort_("There are %i palette entries, which exceeds the maximum of %i\n", num_palette, PAL_ENTRIES);
+
+    if (!png_get_tRNS(png_ptr, info_ptr, &trans, &num_trans, NULL))
+        num_trans = 0;
+
+    rows = png_get_rows(png_ptr, info_ptr);
+
+    fout = fopen(argv[2], "w+");
+    if (!fout)
+        abort_("File %s could not be opened for writing", argv[2]);
+
+    write_palette(fout);
+    fprintf(fout, "\n");
+    write_data(fout);
+
+    png_destroy_read_struct(&png_ptr, &info_ptr, png_infopp_NULL);
+
+    fclose(fin);
+    fclose(fout);
 
     return 0;
 }

@@ -6,4 +6,5 @@ dcmstrip_LDADD = -ltristripper
 ttf2png_SOURCES = ttf2png.c
 ttf2png_LDADD = @SDL_TTF_LIBS@ @SDL_LIBS@ @PNG_LIBS@
 dcicon_SOURCES = dcicon.c
+dcicon_LDADD = @PNG_LIBS@
 vmuicon_SOURCES = vmuicon.c
