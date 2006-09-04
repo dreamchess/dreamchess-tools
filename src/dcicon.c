@@ -34,7 +34,7 @@ static int num_palette;
 static png_bytep trans;
 static int num_trans;
 
-#define PAL_ENTRIES 16
+#define PAL_ENTRIES 32
 #define IMAGE_WIDTH 32
 #define IMAGE_HEIGHT 32
 
