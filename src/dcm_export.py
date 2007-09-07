@@ -24,7 +24,8 @@ Group: 'Export'
 Tooltip: 'Export selected mesh to DreamChess Model format (.dcm)'
 """
 
-import Blender, mod_meshtools
+import Blender
+from Blender import Draw
 import sys
 
 def write_vtx(f, vtx):
@@ -71,7 +72,7 @@ def write(filename):
   file.close()
 
   message = "Successfully exported " + Blender.sys.basename(filename)
-  mod_meshtools.print_boxed(message)
+  Draw.PupMenu(message + "%t|OK");
 
 def fs_callback(filename):
   if filename.find('.dcm', -4) <= 0: filename += '.dcm'
