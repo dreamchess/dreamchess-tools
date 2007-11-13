@@ -264,15 +264,15 @@ void dcm_write(char *filename, primitive_vector &vector)
 int main(int argc, char *argv[])
 {
     primitive_vector primitive;
-    if (argc < 3)
+    if (argc < 4)
     {
-        cout << "Usage: dcmstrip <input.dcm> <output.dcm>" << endl;
+        cout << "Usage: dcmstrip <input.dcm> <output.dcm> <cache_size>" << endl;
         exit(0);
     }
     dcm_load(argv[1]);
     normalize();
     tri_stripper stripper(::indices);
-    stripper.SetCacheSize(0);
+    stripper.SetCacheSize(atoi(argv[3]));
     stripper.Strip(&primitive);
     dcm_write(argv[2], primitive);
 }
