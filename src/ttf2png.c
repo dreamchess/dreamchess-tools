@@ -60,7 +60,7 @@ static void generate_text_char(TTF_Font *font, Uint16 c,
     SDL_FreeSurface( text_texture );
 }
 
-static int line_width(char *w, int n)
+static int line_width(unsigned char *w, int n)
 {
     int i, size = 0;
     for (i = 0; i < n; i++)
