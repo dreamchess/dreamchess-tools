@@ -26,7 +26,7 @@
 
 using namespace std;
 
-typedef unsigned int idx;
+typedef triangle_stripper::index idx;
 typedef vector <idx *> idx_pointers;
 
 vector <float> vertices;

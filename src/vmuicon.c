@@ -90,14 +90,14 @@ int main(int argc, char **argv)
 
     if (setjmp(png_jmpbuf(png_ptr)))
     {
-        png_destroy_read_struct(&png_ptr, &info_ptr, png_infopp_NULL);
+        png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
         fclose(fin);
 
         abort_("Error reading PNG\n");
     }
 
     png_init_io(png_ptr, fin);
-    png_read_png(png_ptr, info_ptr, PNG_TRANSFORM_INVERT_MONO | PNG_TRANSFORM_PACKSWAP, png_voidp_NULL);
+    png_read_png(png_ptr, info_ptr, PNG_TRANSFORM_INVERT_MONO | PNG_TRANSFORM_PACKSWAP, NULL);
 
     if ((png_get_image_width(png_ptr, info_ptr) != IMAGE_WIDTH) ||
         (png_get_image_height(png_ptr, info_ptr) != IMAGE_HEIGHT))
@@ -115,7 +115,7 @@ int main(int argc, char **argv)
 
     write_data(fout);
 
-    png_destroy_read_struct(&png_ptr, &info_ptr, png_infopp_NULL);
+    png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
 
     fclose(fin);
     fclose(fout);
